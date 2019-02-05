@@ -158,8 +158,6 @@ async function parseDocuments($) {
     }
   }
 
-  log('debug', documents, 'documents')
-
   return documents.map(d => {
     const date = d.date.toDate()
     const filename = normalizeFilename(
