@@ -95,7 +95,7 @@ async function parseDocuments($) {
       },
       url: {
         attr: 'onclick',
-        parse: url => `${ajaxLoadUrl}?${parseAjaxLoadUrlHash(url)}`
+        parse: parseAjaxLoadUrl
       }
     },
     '.account-item'
@@ -103,11 +103,11 @@ async function parseDocuments($) {
 
   let documents = []
   for (const account of accounts) {
-    const urlHash = await request(account.url, { method: 'POST' })
-    const dashboard = await request(`${extranetBaseUrl}/${urlHash.text()}`)
+    const $urlHash = await request(account.url, { method: 'POST' })
+    const $dashboard = await request(`${extranetBaseUrl}/${$urlHash.text()}`)
 
     const dashboardLinks = scrape(
-      dashboard,
+      $dashboard,
       {
         url: {
           attr: 'href',
@@ -122,27 +122,17 @@ async function parseDocuments($) {
 
     for (const link of dashboardLinks) {
       if (link.isDocuments) {
-        const docs = await request(link.url)
-        let doc = scrape(
-          docs,
+        const $docs = await request(link.url)
+        let docs = scrape(
+          $docs,
           {
             name: {
               sel: 'b',
-              parse: name =>
-                name
-                  .replace(/ /g, '_')
-                  .toLowerCase()
-                  .trim()
+              parse: parseDocumentName
             },
             date: {
               sel: 'small',
-              parse: date =>
-                moment.utc(
-                  date
-                    .slice('créé le '.length)
-                    .slice(0, 'YYYY-MM-DD'.length)
-                    .trim()
-                )
+              parse: parseDocumentDate
             },
             url: {
               sel: 'a',
@@ -153,32 +143,54 @@ async function parseDocuments($) {
           '#cREPMAIN ul li'
         )
 
-        documents.push(...doc.map(d => ({ ...d, account: account.name })))
+        documents.push(
+          ...docs.map(d => {
+            const date = d.date.toDate()
+            const dateStr = d.date.format('YYYY-MM-DD')
+            const filename = normalizeFilename(
+              `${dateStr}_${vendor}_${account.name}_${d.name}`
+            )
+
+            return {
+              vendor: vendor,
+              date: date,
+              amount: 0,
+              currency: currency,
+              fileurl: d.url,
+              filename: filename,
+              metadata: {
+                importDate: new Date(),
+                version: 1
+              }
+            }
+          })
+        )
       }
     }
+
+    return documents
   }
-
-  return documents.map(d => {
-    const date = d.date.toDate()
-    const filename = normalizeFilename(
-      `${d.date.format('YYYY-MM-DD')}_${vendor}_${d.account}_${d.name}`
-    )
-
-    return {
-      vendor: vendor,
-      date: date,
-      amount: 0,
-      currency: currency,
-      fileurl: d.url,
-      filename: filename,
-      metadata: {
-        importDate: new Date(),
-        version: 1
-      }
-    }
-  })
 }
 
-function parseAjaxLoadUrlHash(ajaxLoad) {
-  return ajaxLoad.replace(/ajaxload\('/g, '').replace(/'\)/g, '')
+function parseAjaxLoadUrl(ajaxLoad) {
+  const query = ajaxLoad.replace(/ajaxload\('/g, '').replace(/'\)/g, '')
+  return `${ajaxLoadUrl}?${query}`
+}
+
+function parseDocumentName(name) {
+  return name
+    .replace(/ /g, '_')
+    .toLowerCase()
+    .trim()
+}
+
+function parseDocumentDate(date) {
+  const dateFormat = 'YYYY-MM-DD'
+  return moment.utc(
+    date
+      .slice('créé le '.length)
+      .slice(0, dateFormat.length)
+      .trim(),
+    dateFormat
+  )
 }
