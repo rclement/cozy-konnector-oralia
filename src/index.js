@@ -154,7 +154,7 @@ async function parseDocuments($) {
             return {
               vendor: vendor,
               date: date,
-              amount: 0,
+              amount: 0, // no amount is provided in data
               currency: currency,
               fileurl: d.url,
               filename: filename,
